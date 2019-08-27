@@ -107,94 +107,79 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          //////
           // Store previous path size:
           int prev_size = previous_path_x.size();
 
-          // Set target reference velocity:
+          // Set target reference velocity (max velocity for our car to reach):
           const double REF_VEL = 49.5;  // MPH
 
+          // If previous path exists, continue from there:
           if (prev_size > 0) {
             car_s = end_path_s;
           }
 
-//          bool car_in_front = false;
-//          bool car_on_left =  false;
-//          bool car_on_right = false;
+          // Analyse nearby cars (true if near me)
+          // {TO THE LEFT, AHEAD, TO THE RIGHT}
           vector<bool> cars_nearby = {false, false, false};
 
-          // Find ref_v to use:
+          // Go over the cars detected using our sensor fusion data:
           for (int i = 0; i < sensor_fusion.size(); ++i) {
-            float d = sensor_fusion[i][6];
-            cout << "car id [" << sensor_fusion[i][0] << "] d = " << d << " | s = " << sensor_fusion[i][5] << endl;
+            int id = sensor_fusion[i][0];
+            double x = sensor_fusion[i][1];
+            double y = sensor_fusion[i][2];
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double s = sensor_fusion[i][5];
+            double d = sensor_fusion[i][6];
+            // cout << "car id [" << id << "]: (x,y) = " << "(" << x << "," << y << "), (vx,vy) = " << "(" << vx << "," << vy << "), (s,d) = " << "(" << s << "," << d << ")" << endl;
 
             // Check car's lane:
-            int car_lane;
-
-            if (d >= 0 && d < 4) {
+            int car_lane = -1;
+            if (0 <= d && d < 4) {  // Left lane
               car_lane = 0;
-            } else if (d >= 4 && d < 8) {
+            } else if (4 <= d && d < 8) {  // Center lane
               car_lane = 1;
-            } else if (d >= 8 && d < 12) {
+            } else if (8 <= d && d < 12) {  // Right lane
               car_lane = 2;
             }
 
-            double vx = sensor_fusion[i][3];
-            double vy = sensor_fusion[i][4];
+            // Calculate car speed and s position:
             double check_speed = sqrt(vx * vx + vy * vy);
             double check_car_s = sensor_fusion[i][5];
 
-            // If using previous points, can project s value out:
+            // Assess car's s position based on its speed and the previous trajectory size:
             check_car_s += ((double) prev_size * 0.02 * check_speed);
 
+            // Store the s position difference between the car and our ego car:
             double s_diff = check_car_s - car_s;
 
+            // Store the difference between the lanes:
             int lane_diff = car_lane - lane;
+
+              // If the car is to our left or right
             if (lane_diff == -1 || lane_diff == 1) {
-              if (fabs(s_diff) < 30) {
+              if (fabs(s_diff) < 30) {  // "Danger" zone (s difference is less than 30m)
                 cars_nearby[lane_diff + 1] = true;
               }
-            } else if (lane_diff == 0) {
-              if ((check_car_s > car_s) && (s_diff < 30)) {
+            } else if (lane_diff == 0) {  // If the car is in our lane
+              if ((check_car_s > car_s) && (s_diff < 30)) {  // Car is ahead & in the 30m range
                 cars_nearby[lane_diff + 1] = true;
-                if (lane > 0 && !cars_nearby[0]) {
-                  lane -= 1;
-                }
-                if (lane < 2 && !cars_nearby[2]) {
-                  lane += 1;
-                }
               }
             }
-          }
+          }  // END IF sensor_fusion
 
-//            // Car ahead of ego-vehicle:
-//            if ( d < (2+4*lane+2) && d > (2+4*lane-2) ) {
-////              double vx = sensor_fusion[i][3];
-////              double vy = sensor_fusion[i][4];
-////              double check_speed = sqrt(vx*vx + vy*vy);
-////              double check_car_s = sensor_fusion[i][5];
-//
-////              // If using previous points, can project s value out:
-////              check_car_s += ((double)prev_size * 0.02 * check_speed);
-//
-//              // Check s values greater than ego-vehicle and s-gap:
-//              if ( (check_car_s > car_s) && ((check_car_s - car_s) < 30) ) {
-//                car_in_front = true;
-//
-//                // Check if left is free:
-//                if (lane > 0 && !car_on_left) {
-//                  lane = 0;
-//                }
-//              } // END IF - check s values
-//            } // END IF - car ahead
-//          } // END IF - sensor fusion
 
-          if (cars_nearby[1]) {  // Smooth deceleration if too close
-            ego_v -= 0.224;  // 0.224
-            //cars_nearby[1] = false;
-          }
-          else if (ego_v < REF_VEL) {  // Smooth acceleration to target velocity
-            ego_v += 0.448;  // 0.224
+          // Lane change state machine:
+          if (cars_nearby[1]) {  // Car ahead of me
+              if (lane > 0 && !cars_nearby[0]) {  // Not in left-most lane & no car on the left
+                  lane--;  // Go left
+              } else if (lane < 2 && !cars_nearby[2]) {  // Not in right-most lane & no car on the right
+                  lane++;  // Go right
+              } else {  // Can't lane change & too close
+                  ego_v -= 0.224;  // Smooth deceleration
+              }
+          } else if (ego_v < REF_VEL) {  // Haven't reached target speed yet
+              ego_v += 0.448;
           }
 
           // Create a list of widely spaced (x, y) waypoints, evenly spaced at 30m
@@ -301,8 +286,6 @@ int main() {
             next_x_vals.push_back(x_pt);
             next_y_vals.push_back(y_pt);
           }
-
-          ////
 
           // Actuation:
           msgJson["next_x"] = next_x_vals;

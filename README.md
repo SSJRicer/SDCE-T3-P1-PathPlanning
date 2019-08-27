@@ -1,5 +1,71 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
+
+---
+
+## Rubric Criteria
+
+### Compilation
+#### "The code compiles correctly."
+
+The code compiles without any errors with cmake & make.
+
+### Valid Trajectories
+#### "The car is able to drive at least 4.32 miles without incident."
+
+As show in the image below, the car drives well past the 4.32 miles mark without any incident.
+
+![Image](./imgs/mile_6.png)
+
+#### "The car drives according to the speed limit."
+
+The car does not drive faster than the 50 MPH speed limit and is only slowing down due to traffic.
+
+#### "Max acceleration and jerk are not Exceeded."
+
+Not exceeded indeed.
+
+#### "Car does not have collision."
+
+Not even once!
+
+#### "The car stays in its lane, except for the time between changing lanes."
+
+The does indeed switches lane fast, without delay, and stays in the lane
+it switched to, until a car blocks it
+
+#### "The car is able to change lanes."
+
+By reading the data of the traffic around it, the car know when to transition 
+to a different lane, while doing it smoothly.
+
+### Reflection
+#### "There is a reflection on how to generate paths."
+
+The model is based on what I've learned in class, with some very helpful
+tips from the project Q&A. It works as follows:
+
+1. Extract data from the simulator (lines 85-103).
+2. For each car in our sensor fusion data:
+    1. Extract the car's data (lines 127-133).
+    2. Find the car's lane (lines 136-144). 
+    3. Calculate its speed and s position (lines 146-148). 
+    4. Check if the car is in the danger zone - ahead and less than 30 meters,
+    or to the side and up to 30 meters difference in s position (lines 150-169).
+3. Define our state machine:
+    1. If the car is ahead:
+        1. And the left side is safe (no car in the danger zone), 
+        transition to the left (lines 174-175). 
+        2. And if not, but the right side is safe, transition to the right
+        (lines 176-177). 
+        3. And if both lanes are occupied, decelerate smoothly (lines 178-180).
+    2. If not car is ahead, speed up to the target (maximum) speed (lines 181-183).
+4. Calculate the trajectory by using interpolating evenly spaced (30 meters)
+waypoints with spline (lines 185-288). 
+5. Finally, send actuations back to the simulator (lines 290-296).
+ 
+
+---
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
